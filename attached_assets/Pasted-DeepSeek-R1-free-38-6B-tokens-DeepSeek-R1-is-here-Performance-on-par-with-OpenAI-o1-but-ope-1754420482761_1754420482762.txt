@@ -1,0 +1,46 @@
+DeepSeek: R1 (free)
+
+38.6B tokens
+DeepSeek R1 is here: Performance on par with OpenAI o1, but open-sourced and with fully open reasoning tokens. It's 671B parameters in size, with 37B active in an inference pass.  Fully open-source model & technical report.  MIT licensed: Distill & commercialize freely!
+
+by deepseek
+164K context
+$0/M input tokens
+$0/M output tokens
+Z.AI: GLM 4.5 Air (free)
+
+25.1B tokens
+GLM-4.5-Air is the lightweight variant of our latest flagship model family, also purpose-built for agent-centric applications. Like GLM-4.5, it adopts the Mixture-of-Experts (MoE) architecture but with a more compact parameter size. GLM-4.5-Air also supports hybrid inference modes, offering a "thinking mode" for advanced reasoning and tool use, and a "non-thinking mode" for real-time interaction. Users can control the reasoning behaviour with the reasoning enabled boolean. Learn more in our docs
+
+by z-ai
+131K context
+$0/M input tokens
+$0/M output tokens
+TNG: DeepSeek R1T2 Chimera (free)
+
+13.8B tokens
+DeepSeek-TNG-R1T2-Chimera is the second-generation Chimera model from TNG Tech. It is a 671 B-parameter mixture-of-experts text-generation model assembled from DeepSeek-AI’s R1-0528, R1, and V3-0324 checkpoints with an Assembly-of-Experts merge. The tri-parent design yields strong reasoning performance while running roughly 20 % faster than the original R1 and more than 2× faster than R1-0528 under vLLM, giving a favorable cost-to-intelligence trade-off. The checkpoint supports contexts up to 60 k tokens in standard use (tested to ~130 k) and maintains consistent <think> token behaviour, making it suitable for long-context analysis, dialogue and other open-ended generation tasks.
+
+by tngtech
+164K context
+$0/M input tokens
+$0/M output tokens
+MoonshotAI: Kimi K2 (free)
+
+10.7B tokens
+Kimi K2 Instruct is a large-scale Mixture-of-Experts (MoE) language model developed by Moonshot AI, featuring 1 trillion total parameters with 32 billion active per forward pass. It is optimized for agentic capabilities, including advanced tool use, reasoning, and code synthesis. Kimi K2 excels across a broad range of benchmarks, particularly in coding (LiveCodeBench, SWE-bench), reasoning (ZebraLogic, GPQA), and tool-use (Tau2, AceBench) tasks. It supports long-context inference up to 128K tokens and is designed with a novel training stack that includes the MuonClip optimizer for stable large-scale MoE training.
+
+by moonshotai
+33K context
+$0/M input tokens
+$0/M output tokens
+TNG: DeepSeek R1T Chimera (free)
+
+7.17B tokens
+DeepSeek-R1T-Chimera is created by merging DeepSeek-R1 and DeepSeek-V3 (0324), combining the reasoning capabilities of R1 with the token efficiency improvements of V3. It is based on a DeepSeek-MoE Transformer architecture and is optimized for general text generation tasks.  The model merges pretrained weights from both source models to balance performance across reasoning, efficiency, and instruction-following tasks. It is released under the MIT license and intended for research and commercial use.
+
+by tngtech
+164K context
+$0/M input tokens
+$0/M output tokens
+Google: Gemini 2.0 Flash Experimental (free)
