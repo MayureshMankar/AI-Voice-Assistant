@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, ChevronRight, User, Settings } from 'lucide-react';
+import { Plus, ChevronRight, User, Settings, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { apiRequest } from '@/lib/queryClient';
@@ -13,6 +13,7 @@ interface ConversationSidebarProps {
   onConversationSelect: (id: string) => void;
   onNewConversation: () => void;
   onOpenSettings: () => void;
+  onOpenChat?: () => void;
 }
 
 export function ConversationSidebar({
@@ -21,15 +22,15 @@ export function ConversationSidebar({
   currentConversationId,
   onConversationSelect,
   onNewConversation,
-  onOpenSettings
+  onOpenSettings,
+  onOpenChat
 }: ConversationSidebarProps) {
   const queryClient = useQueryClient();
-
   const { data: conversations = [], isLoading } = useQuery<Conversation[]>({
     queryKey: ['/api/conversations'],
     enabled: isOpen,
   });
-
+  
   const createConversationMutation = useMutation({
     mutationFn: async (title: string) => {
       const response = await apiRequest('POST', '/api/conversations', { title });
@@ -39,24 +40,23 @@ export function ConversationSidebar({
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
     },
   });
-
+  
   const handleNewConversation = () => {
     const title = `Conversation ${new Date().toLocaleDateString()}`;
     createConversationMutation.mutate(title);
     onNewConversation();
   };
-
+  
   const formatRelativeTime = (date: Date | string) => {
     const now = new Date();
     const target = new Date(date);
     const diffInMinutes = Math.floor((now.getTime() - target.getTime()) / (1000 * 60));
-
     if (diffInMinutes < 1) return 'Just now';
     if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`;
     return target.toLocaleDateString();
   };
-
+  
   return (
     <div className={cn(
       "w-80 bg-slate-900 border-r border-slate-700 flex flex-col transition-all duration-300 ease-in-out",
@@ -77,6 +77,21 @@ export function ConversationSidebar({
           </Button>
         </div>
       </div>
+      
+      {/* Chat Section Button */}
+      {onOpenChat && (
+        <div className="px-4 pt-2 pb-4">
+          <Button
+            variant="ghost"
+            className="w-full justify-start p-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+            onClick={onOpenChat}
+            data-testid="button-open-chat"
+          >
+            <MessageCircle className="mr-3 h-5 w-5" />
+            <span>Open Chat</span>
+          </Button>
+        </div>
+      )}
       
       {/* Conversation List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">

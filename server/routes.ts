@@ -30,6 +30,19 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Add CORS headers for all routes
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+    } else {
+      next();
+    }
+  });
+
   // Conversations endpoints
   app.get("/api/conversations", async (req, res) => {
     try {
@@ -97,12 +110,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete individual message endpoint
+  app.delete("/api/conversations/:conversationId/messages/:messageId", async (req, res) => {
+    try {
+      const { conversationId, messageId } = req.params;
+      
+      // Verify the conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      // Verify the message exists and belongs to the conversation
+      const messages = await storage.getMessagesByConversation(conversationId);
+      const messageToDelete = messages.find(msg => msg.id === messageId);
+      
+      if (!messageToDelete) {
+        return res.status(404).json({ message: "Message not found" });
+      }
+      
+      // Delete the message
+      const deleted = await storage.deleteMessage(messageId);
+      
+      if (!deleted) {
+        return res.status(500).json({ message: "Failed to delete message" });
+      }
+      
+      res.json({ message: "Message deleted successfully" });
+    } catch (error) {
+      console.error("Delete message error:", error);
+      res.status(500).json({ message: "Failed to delete message" });
+    }
+  });
+
+  // Delete all messages in a conversation endpoint
+  app.delete("/api/conversations/:conversationId/messages", async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      
+      // Verify the conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      // Get all messages in the conversation
+      const messages = await storage.getMessagesByConversation(conversationId);
+      
+      // Delete each message
+      const messageIds = messages.map(msg => msg.id);
+      const allDeleted = await storage.deleteMessages(messageIds);
+      
+      if (!allDeleted) {
+        return res.status(500).json({ message: "Some messages could not be deleted" });
+      }
+      
+      res.json({ message: "All messages deleted successfully" });
+    } catch (error) {
+      console.error("Delete all messages error:", error);
+      res.status(500).json({ message: "Failed to delete messages" });
+    }
+  });
+
   // Enhanced voice processing endpoint with multimodal support
   app.post("/api/process-voice", upload.single('audio'), async (req, res) => {
     try {
       const { conversationId, imageData, transcriptionText } = req.body;
       let transcription;
-
+      
       // Handle transcription - either from server-side or client-side
       if (transcriptionText) {
         // Use client-side transcription if provided
@@ -130,14 +205,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: msg.role,
         content: msg.content
       }));
-
+      
       // Process with GPT-4 (with optional image data for multimodal processing)
       const gptResponse = await processWithGPT4(transcription.text, conversationHistory, imageData);
-
+      
       // Handle special actions
       let responseData = gptResponse.data;
       let audioUrl: string | undefined;
-
+      
       switch (gptResponse.action) {
         case 'weather':
           try {
@@ -147,7 +222,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error("Weather API error:", weatherError);
           }
           break;
-
+          
         case 'news':
           try {
             const category = gptResponse.data?.category || 'general';
@@ -156,7 +231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error("News API error:", newsError);
           }
           break;
-
+          
         case 'reminder':
           try {
             const reminderText = gptResponse.data?.reminderText || transcription.text;
@@ -168,7 +243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error("Reminder creation error:", reminderError);
           }
           break;
-
+          
         case 'email':
           try {
             const emailData = emailService.parseEmailFromText(transcription.text);
@@ -179,7 +254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error("Email sending error:", emailError);
           }
           break;
-
+          
         case 'document':
           try {
             const query = gptResponse.data?.documentQuery || transcription.text;
@@ -189,15 +264,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error("Document processing error:", docError);
           }
           break;
-
+          
         case 'music':
           try {
             const musicQuery = gptResponse.data?.query || transcription.text;
             // Get a music track from our API
-            const musicResponse = await fetch(`http://localhost:5000/api/music?q=${encodeURIComponent(musicQuery)}`);
-            if (musicResponse.ok) {
-              responseData = await musicResponse.json();
-            } else {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            try {
+              const musicResponse = await fetch(`http://localhost:5000/api/music?q=${encodeURIComponent(musicQuery)}`, {
+                signal: controller.signal
+              });
+              
+              clearTimeout(timeoutId);
+              
+              if (musicResponse.ok) {
+                responseData = await musicResponse.json();
+              } else {
+                responseData = { message: "Music service temporarily unavailable" };
+              }
+            } catch (musicError) {
+              clearTimeout(timeoutId);
+              console.error("Music processing error:", musicError);
               responseData = { message: "Music service temporarily unavailable" };
             }
           } catch (musicError) {
@@ -206,7 +295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           break;
       }
-
+      
       // Generate TTS audio if requested
       if (req.body.generateTTS) {
         try {
@@ -215,14 +304,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error("TTS generation error:", ttsError);
         }
       }
-
+      
       // Clean up uploaded file if it exists
       if (req.file) {
         fs.unlink(req.file.path, (err) => {
           if (err) console.error("Failed to delete uploaded file:", err);
         });
       }
-
+      
       res.json({
         transcription: transcription.text,
         response: gptResponse.message,
@@ -241,6 +330,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const location = req.query.location as string || "New York";
       const weatherData = await getWeatherData(location);
+      
+      // Add headers to prevent caching
+      res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Content-Type': 'application/json'
+      });
+      
       res.json(weatherData);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch weather data" });
@@ -264,29 +362,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const query = req.query.q as string || 'ambient music';
       
-      // For demo purposes, provide some royalty-free ambient music URLs
+      // Updated list with working royalty-free music URLs
       const musicTracks = [
         {
           title: "Peaceful Ambient",
-          url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav",
-          duration: "0:30"
+          url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+          duration: "5:27"
         },
         {
           title: "Gentle Piano", 
-          url: "https://archive.org/download/testmp3testfile/mpthreetest.mp3",
-          duration: "0:27"
+          url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+          duration: "4:17"
         },
         {
-          title: "Nature Sounds",
-          url: "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav", 
-          duration: "1:00"
+          title: "Relaxing Nature Sounds",
+          url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", 
+          duration: "6:05"
+        },
+        {
+          title: "Calming Ocean Waves",
+          url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+          duration: "3:48"
+        },
+        {
+          title: "Meditation Music",
+          url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+          duration: "7:22"
+        },
+        {
+          title: "Upbeat Electronic",
+          url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+          duration: "4:33"
+        },
+        {
+          title: "Jazz Cafe",
+          url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+          duration: "5:15"
+        },
+        {
+          title: "Classical Harmony",
+          url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+          duration: "6:42"
         }
       ];
       
-      // Select a random track for variety
-      const randomTrack = musicTracks[Math.floor(Math.random() * musicTracks.length)];
+      // Select a track based on the query for better user experience
+      let selectedTrack;
+      const queryLower = query.toLowerCase();
       
-      res.json(randomTrack);
+      if (queryLower.includes('piano') || queryLower.includes('gentle') || queryLower.includes('soft')) {
+        selectedTrack = musicTracks[1]; // Gentle Piano
+      } else if (queryLower.includes('nature') || queryLower.includes('ocean') || queryLower.includes('wave') || queryLower.includes('water')) {
+        selectedTrack = musicTracks[3]; // Calming Ocean Waves
+      } else if (queryLower.includes('meditation') || queryLower.includes('calm') || queryLower.includes('relax')) {
+        selectedTrack = musicTracks[4]; // Meditation Music
+      } else if (queryLower.includes('electronic') || queryLower.includes('upbeat') || queryLower.includes('energetic')) {
+        selectedTrack = musicTracks[5]; // Upbeat Electronic
+      } else if (queryLower.includes('jazz') || queryLower.includes('cafe') || queryLower.includes('smooth')) {
+        selectedTrack = musicTracks[6]; // Jazz Cafe
+      } else if (queryLower.includes('classical') || queryLower.includes('orchestra') || queryLower.includes('symphony')) {
+        selectedTrack = musicTracks[7]; // Classical Harmony
+      } else if (queryLower.includes('ambient') || queryLower.includes('peaceful') || queryLower.includes('background')) {
+        selectedTrack = musicTracks[0]; // Peaceful Ambient
+      } else {
+        // Default to random selection
+        selectedTrack = musicTracks[Math.floor(Math.random() * musicTracks.length)];
+      }
+      
+      console.log(`Music query: "${query}" -> Selected track: "${selectedTrack.title}"`);
+      res.json(selectedTrack);
     } catch (error) {
       console.error('Music API error:', error);
       res.status(500).json({ 
